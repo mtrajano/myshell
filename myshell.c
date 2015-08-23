@@ -5,6 +5,9 @@
 #define MAX_ARGS 50
 #define MAX_ARG_LENGTH 1000
 
+#define MISSMATCHED_SINGLE_QUOTE (-1)
+#define MISSMATCHED_DOUBLE_QUOTE (-2)
+
 #define TRACEMSG(f) printf(f)
 #define TRACE(f, x...) printf(f, x)
 
@@ -55,9 +58,33 @@ void exit_with_sig(int sig, char **argv, int argc) {
 int get_arg_len(char *line) {
 	int len = 0;
 
-	while(*line != '\0' && *line != ' ' && len < MAX_ARG_LENGTH) {
+	if(*line == '\"') {
 		line++;
-		len++;
+		while(*line != '\0' && *line != '\"' && len < MAX_ARG_LENGTH) {
+			line++;
+			len++;
+		}
+
+		if(*line != '\"') {
+			len = MISSMATCHED_DOUBLE_QUOTE;
+		}
+	}
+	else if(*line == '\'') {
+		line++;
+		while(*line != '\0' && *line != '\'' && len < MAX_ARG_LENGTH) {
+			line++;
+			len++;
+		}
+
+		if(*line != '\'') {
+			len = MISSMATCHED_SINGLE_QUOTE;
+		}
+	}
+	else{
+		while(*line != '\0' && *line != ' ' && len < MAX_ARG_LENGTH) {
+			line++;
+			len++;
+		}
 	}
 
 	return len;
@@ -73,7 +100,7 @@ int parse_input(char *line, char **argv) {
 	int argc = 0;
 	argv[0] = NULL;
 
-	/*So no extra args at the end*/
+	/*So no extra arg at the end*/
 	remove_trailing_space(line);
 
 	while(*line && argc < MAX_ARGS) {
@@ -83,12 +110,28 @@ int parse_input(char *line, char **argv) {
 			line++;
 		}
 
-		arg_len = get_arg_len(line);
+		/*If error return to main and don't execute program*/
+		if((arg_len = get_arg_len(line)) < 0) {
+			printf("Error parsing input\n");
+			return arg_len;
+		}
+
+		/*Exclude first quotes from arg*/
+		if(*line == '\'' || *line == '\"') {
+			line++;
+		}
 
 		char *arg = malloc(arg_len);
 		strncpy(arg, line, arg_len);
 
 		line += arg_len;
+
+		/*Exclude other side of quotes*/
+		if(*line == '\'' || *line == '\"') {
+			*line = '\0';
+			line++;
+		}
+
 		argv[argc++] = arg;
 		argv[argc] = NULL;
 	}
@@ -112,7 +155,7 @@ void free_args(char **args, int argc) {
 }
 
 int main( void ) {
-	unsigned int argc;
+	int argc;
 	char **argv = NULL;
 	char *input;
 	size_t read_count;
@@ -128,7 +171,10 @@ int main( void ) {
 		}
 
 		argv = malloc(MAX_ARGS);
-		argc = parse_input(input, argv);
+		if((argc = parse_input(input, argv)) < 0) {
+			free_args(argv, argc);
+			continue;
+		}
 
 		/*Line contained inputs*/
 		if(argv[0] != NULL) {
