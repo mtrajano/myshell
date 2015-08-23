@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define MAX_ARGS 50
 #define MAX_ARG_LENGTH 1000
@@ -16,6 +17,7 @@ int get_arg_len(char *line);
 int parse_input(char *line, char **argv);
 void free_args(char **args, int argc);
 void remove_trailing_space(char *line);
+int execute_prog(char **argv, int argc);
 
 void debug_argv(char **argv, int argc) {
 	for(int i=0; i<argc; i++) {
@@ -154,6 +156,44 @@ void free_args(char **args, int argc) {
 	}
 }
 
+/**
+** @param {argv} array of arguments for program, argv[0] is name of program
+** @param {argc} argument count
+** @returns 0 on success, <0 on error
+**/
+
+int execute_prog(char **argv, int argc) {
+	pid_t procid, wpid;
+	int status = 0;
+
+	if(strcmp(argv[0], "exit") == 0) {
+		int sig = argv[1] ? atoi(argv[1]) : 0;
+		exit_with_sig(sig, argv, argc);
+	}
+	else {
+		procid = fork();
+
+		if(procid < 0) {
+		    printf("Error: Something unexpected happened\n");
+		}
+		else if(procid == 0) {
+		    if(execvp(argv[0], argv) < 0) {
+		        printf("Error: %s program could not be found in your path\n", argv[0]);
+		        _exit(EXIT_FAILURE);
+		    }
+		    else {
+				_exit(EXIT_SUCCESS);
+		    }
+		}
+		else {
+		    wpid = wait(&status);
+		    free_args(argv, argc);
+		}
+	}
+
+	return status;
+}
+
 int main( void ) {
 	int argc;
 	char **argv = NULL;
@@ -178,12 +218,7 @@ int main( void ) {
 
 		/*Line contained inputs*/
 		if(argv[0] != NULL) {
-			if(strcmp(argv[0], "exit") == 0) {
-				int sig = argv[1] ? atoi(argv[1]) : 0;
-				exit_with_sig(sig, argv, argc);
-			}
+			execute_prog(argv, argc);
 		}
-
-		free_args(argv, argc);
 	}
 }
