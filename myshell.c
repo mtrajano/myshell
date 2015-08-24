@@ -13,10 +13,16 @@
 #define TRACE(f, x...) printf(f, x)
 
 typedef struct tokens tokens_t; 
+typedef struct command command_t; 
 
 tokens_t *create_token(char *line, int num_chars);
 void add_token(tokens_t **head, char *line, int num_chars);
+void destroy_tokens(tokens_t *list);
 tokens_t *build_tokens(char *line);
+command_t *create_command();
+void add_command(command_t **head, command_t *new_comm);
+command_t *build_commands(tokens_t *tokens);
+void destroy_commands(command_t *list);
 void exit_with_sig(int sig, char **argv, int argc);
 int get_arg_len(char *line);
 int parse_input(char *line, char **argv);
@@ -30,11 +36,30 @@ struct tokens {
 	tokens_t *next;
 };
 
+struct command {
+	int argc;
+	char **argv;
+	command_t *next;
+};
+
+
 void debug_argv(char **argv, int argc) {
 	for(int i=0; i<argc; i++) {
 		TRACE("arg %d: %s, len: %lu\n", i, argv[i], strlen(argv[i]));
 	}
 	TRACE("argc: %d\n", argc);
+}
+
+void debug_commands(command_t *list) {
+	int i=0;
+	while(list != NULL) {
+		TRACE("command %d:\n", i);
+		for(int j=0; j<list->argc; j++) {
+			TRACE("\targ %d: %s\n", j, list->argv[j]);
+		}
+		list = list->next;
+		i++;
+	}
 }
 
 /**
@@ -204,6 +229,91 @@ void destroy_tokens(tokens_t *list) {
 }
 
 /**
+** @returns a new empty command node
+**/
+
+command_t *create_command() {
+	command_t *temp = malloc(sizeof(command_t));
+	char **args = malloc(MAX_ARGS);
+
+	temp->argv = args;
+	temp->argc = 0;
+	temp->next = NULL;
+
+	return temp;
+}
+
+/**
+** @param {head} list of commands
+** @param {new_comm} new command to be added to list of commands
+**/
+
+void add_command(command_t **head, command_t *new_comm) {
+	if(*head == NULL) {
+		*head = new_comm;
+	}
+	else{
+		command_t *tail = *head;
+		while(tail->next != NULL) {
+			tail = tail->next;
+		}
+
+		tail->next = new_comm;
+	}
+}
+
+/**
+** @param {tokens} list of tokens
+** @returns a list of commands to be executed
+**/
+
+command_t *build_commands(tokens_t *tokens) {
+	command_t *head = NULL;
+
+	while(tokens != NULL && tokens->token != NULL) {
+
+		command_t *new_comm = create_command();
+
+		/*Add args for a single command*/
+		while(tokens != NULL && tokens->token != NULL && strcmp(tokens->token, "|") != 0 && new_comm->argc < MAX_ARGS) {
+			/*Don't add quotes to args*/
+			if(strcmp(tokens->token, "\"") == 0 || strcmp(tokens->token, "\'") == 0) {
+				tokens = tokens->next;
+				continue;
+			}
+
+			new_comm->argv[new_comm->argc++] = tokens->token;
+			tokens = tokens->next;
+		}
+
+		if(new_comm->argc == MAX_ARGS) {
+			printf("Too many arguments given\n");
+		}
+		else if(tokens !=NULL && tokens->token != NULL) {
+			tokens = tokens->next;
+		}
+
+		add_command(&head, new_comm);
+	}
+
+	return head;
+}
+
+/**
+** @param {line} list of commands to be freed
+**/
+
+void destroy_commands(command_t *list) {
+	while(list != NULL) {
+		command_t *temp = list;
+		list = list->next;
+
+		free(temp);
+	}
+}
+
+
+/**
 ** @param {line} line to be parsed
 ** @param {argv} array of arguments to be filled
 ** @returns number of arguments read
@@ -311,6 +421,7 @@ int main( void ) {
 	char *input;
 	size_t read_count;
 	tokens_t *tokens;
+	command_t *commands;
 
 	/*Prompt user until interrupt, error or quit*/
 	while(1) {
@@ -323,7 +434,9 @@ int main( void ) {
 		}
 
 		tokens = build_tokens(input);
+		commands = build_commands(tokens);
 
 		destroy_tokens(tokens);
+		destroy_commands(commands);
 	}
 }
