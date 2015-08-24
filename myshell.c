@@ -12,12 +12,23 @@
 #define TRACEMSG(f) printf(f)
 #define TRACE(f, x...) printf(f, x)
 
+typedef struct tokens tokens_t; 
+
+tokens_t *create_token(char *line, int num_chars);
+void add_token(tokens_t **head, char *line, int num_chars);
+tokens_t *build_tokens(char *line);
 void exit_with_sig(int sig, char **argv, int argc);
 int get_arg_len(char *line);
 int parse_input(char *line, char **argv);
 void free_args(char **args, int argc);
 void remove_trailing_space(char *line);
 int execute_prog(char **argv, int argc);
+
+
+struct tokens {
+	char *token;
+	tokens_t *next;
+};
 
 void debug_argv(char **argv, int argc) {
 	for(int i=0; i<argc; i++) {
@@ -90,6 +101,106 @@ int get_arg_len(char *line) {
 	}
 
 	return len;
+}
+
+/**
+** @param {line} line of arguments
+** @param {num_chars} number of characters to be copied to token
+** returns a new token
+**/
+
+tokens_t *create_token(char *line, int num_chars) {
+	tokens_t *temp = malloc(sizeof(tokens_t));
+	char *token = malloc(num_chars+1);
+
+	temp->token = token;
+	temp->next = NULL;
+
+	strncpy(temp->token, line, num_chars);
+	temp->token[num_chars] = '\0';
+
+	return temp;
+}
+
+/**
+** @param {head} reference to the beginning of the token list
+** @param {line} line of arguments
+** @param {num_chars} number of characters to be copied to token
+**/
+
+void add_token(tokens_t **head, char *line, int num_chars) {
+	tokens_t *temp = create_token(line, num_chars);
+
+	if(*head == NULL) {
+		*head = temp;
+	}
+	else{
+		tokens_t *tail = *head;
+		while(tail->next != NULL) {
+			tail = tail->next;
+		}
+		(tail)->next = temp;
+	}
+}
+
+/**
+** @param {line} line to be parsed for tokens
+** returns a list of tokens
+**/
+
+tokens_t *build_tokens(char *line) {
+	tokens_t *head = NULL;
+
+	/*Skip leading spaces*/
+	while(*line == ' ') {
+		line++;
+	}
+
+	while(*line != '\0') {
+		int arg_len = 0;
+
+		/*If error return to main and don't execute program*/
+		if((arg_len = get_arg_len(line)) < 0) {
+			printf("Error parsing input around '%c'\n", *line);
+			return NULL;
+		}
+
+		/*Exclude first quotes from arg*/
+		if(*line == '\'' || *line == '\"') {
+			add_token(&head, line, 1);
+			line++;
+		}
+
+		add_token(&head, line, arg_len);
+		line += arg_len;
+
+		/*Exclude other side of quotes*/
+		if(*line == '\'' || *line == '\"') {
+			add_token(&head, line, 1);
+			line++;
+		}
+
+		/*Skip trailing spaces*/
+		while(*line == ' ') {
+			line++;
+		}
+	}
+
+	return head;
+}
+
+/**
+** @param {line} list of tokens to be freed
+**/
+
+void destroy_tokens(tokens_t *list) {
+	while(list != NULL) {
+		tokens_t *temp = list;
+		list = list->next;
+
+		free(temp->token);
+		free(temp);
+	}
 }
 
 /**
@@ -195,10 +306,11 @@ int execute_prog(char **argv, int argc) {
 }
 
 int main( void ) {
-	int argc;
+	int argc = 0;
 	char **argv = NULL;
 	char *input;
 	size_t read_count;
+	tokens_t *tokens;
 
 	/*Prompt user until interrupt, error or quit*/
 	while(1) {
@@ -210,15 +322,8 @@ int main( void ) {
 			exit_with_sig(0, argv, argc);
 		}
 
-		argv = malloc(MAX_ARGS);
-		if((argc = parse_input(input, argv)) < 0) {
-			free_args(argv, argc);
-			continue;
-		}
+		tokens = build_tokens(input);
 
-		/*Line contained inputs*/
-		if(argv[0] != NULL) {
-			execute_prog(argv, argc);
-		}
+		destroy_tokens(tokens);
 	}
 }
