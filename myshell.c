@@ -25,7 +25,6 @@ command_t *build_commands(tokens_t *tokens);
 void destroy_commands(command_t *list);
 void exit_with_sig(int sig, char **argv, int argc);
 int get_arg_len(char *line);
-int parse_input(char *line, char **argv);
 void free_args(char **args, int argc);
 void remove_trailing_space(char *line);
 int execute_prog(char **argv, int argc);
@@ -310,56 +309,6 @@ void destroy_commands(command_t *list) {
 
 		free(temp);
 	}
-}
-
-
-/**
-** @param {line} line to be parsed
-** @param {argv} array of arguments to be filled
-** @returns number of arguments read
-**/
-
-int parse_input(char *line, char **argv) {
-	int argc = 0;
-	argv[0] = NULL;
-
-	/*So no extra arg at the end*/
-	remove_trailing_space(line);
-
-	while(*line && argc < MAX_ARGS) {
-		int arg_len = 0;
-
-		while(*line == ' ') {
-			line++;
-		}
-
-		/*If error return to main and don't execute program*/
-		if((arg_len = get_arg_len(line)) < 0) {
-			printf("Error parsing input\n");
-			return arg_len;
-		}
-
-		/*Exclude first quotes from arg*/
-		if(*line == '\'' || *line == '\"') {
-			line++;
-		}
-
-		char *arg = malloc(arg_len);
-		strncpy(arg, line, arg_len);
-
-		line += arg_len;
-
-		/*Exclude other side of quotes*/
-		if(*line == '\'' || *line == '\"') {
-			*line = '\0';
-			line++;
-		}
-
-		argv[argc++] = arg;
-		argv[argc] = NULL;
-	}
-
-	return argc;
 }
 
 /**
