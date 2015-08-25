@@ -24,7 +24,7 @@ command_t *create_command();
 void add_command(command_t **head, command_t *new_comm);
 command_t *build_commands(tokens_t *tokens, int *num_progs);
 void destroy_commands(command_t *list);
-void exit_with_sig(int sig, char **argv, int argc);
+void exit_with_sig(int sig, command_t *comm_list);
 int get_arg_len(char *line);
 void free_args(char **args, int argc);
 void remove_trailing_space(char *line);
@@ -80,9 +80,9 @@ void remove_trailing_space(char *line) {
 ** @param {sig} signal to be exited with, NULL defaults to 0
 **/
 
-void exit_with_sig(int sig, char **argv, int argc) {
+void exit_with_sig(int sig, command_t *comm_list) {
 	/*Clean up before*/
-	free_args(argv, argc);
+	destroy_commands(comm_list);
 
 	printf("Shell exited with signal: %d\n", sig);
 	exit(sig);
@@ -312,6 +312,7 @@ void destroy_commands(command_t *list) {
 		command_t *temp = list;
 		list = list->next;
 
+		free_args(temp->argv, temp->argc);
 		free(temp);
 	}
 }
@@ -390,8 +391,6 @@ void execute_comm_list(command_t *comm_list, int num_progs) {
 }
 
 int main( void ) {
-	int argc = 0;
-	char **argv = NULL;
 	char *input = NULL;
 	size_t read_count = 0;
 	tokens_t *tokens;
@@ -407,15 +406,13 @@ int main( void ) {
 		input[strlen(input) - 1] = '\0'; /*Strip newline char*/
 
 		if(feof(stdin)) {
-			exit_with_sig(0, argv, argc);
+			exit_with_sig(0, NULL);
 		}
 
 		tokens = build_tokens(input);
 		commands = build_commands(tokens, &num_commands);
 
 		execute_comm_list(commands, num_commands);
-
-		destroy_tokens(tokens);
 		destroy_commands(commands);
 	}
 }
