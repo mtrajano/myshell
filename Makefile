@@ -1,4 +1,4 @@
-OBJS = myshell.o
+OBJS = myshell.o command.o token.o
 CC = gcc -std=gnu99
 CFLAGS = -g -Wall
 
