@@ -1,5 +1,5 @@
 OBJS = myshell.o
-CC = gcc
+CC = gcc -std=gnu99
 CFLAGS = -g -Wall
 
 myshell: $(OBJS)

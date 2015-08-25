@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #define MAX_ARGS 50
 #define MAX_ARG_LENGTH 1000
@@ -391,8 +392,8 @@ void execute_comm_list(command_t *comm_list, int num_progs) {
 int main( void ) {
 	int argc = 0;
 	char **argv = NULL;
-	char *input;
-	size_t read_count;
+	char *input = NULL;
+	size_t read_count = 0;
 	tokens_t *tokens;
 	command_t *commands;
 	int num_commands;
