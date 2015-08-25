@@ -21,13 +21,13 @@ void destroy_tokens(tokens_t *list);
 tokens_t *build_tokens(char *line);
 command_t *create_command();
 void add_command(command_t **head, command_t *new_comm);
-command_t *build_commands(tokens_t *tokens);
+command_t *build_commands(tokens_t *tokens, int *num_progs);
 void destroy_commands(command_t *list);
 void exit_with_sig(int sig, char **argv, int argc);
 int get_arg_len(char *line);
 void free_args(char **args, int argc);
 void remove_trailing_space(char *line);
-int execute_prog(char **argv, int argc);
+void execute_comm_list(command_t *comm_list, int num_progs);
 
 
 struct tokens {
@@ -263,15 +263,17 @@ void add_command(command_t **head, command_t *new_comm) {
 
 /**
 ** @param {tokens} list of tokens
+** @param {num_progs} reference to int will be set to number of programs in list returned
 ** @returns a list of commands to be executed
 **/
 
-command_t *build_commands(tokens_t *tokens) {
+command_t *build_commands(tokens_t *tokens, int *num_progs) {
 	command_t *head = NULL;
 
 	while(tokens != NULL && tokens->token != NULL) {
 
 		command_t *new_comm = create_command();
+		(*num_progs)++;
 
 		/*Add args for a single command*/
 		while(tokens != NULL && tokens->token != NULL && strcmp(tokens->token, "|") != 0 && new_comm->argc < MAX_ARGS) {
@@ -292,6 +294,8 @@ command_t *build_commands(tokens_t *tokens) {
 			tokens = tokens->next;
 		}
 
+		/*End of argument list must be appended by NULL as required by execvp*/
+		new_comm->argv[new_comm->argc] = NULL;
 		add_command(&head, new_comm);
 	}
 
@@ -327,41 +331,61 @@ void free_args(char **args, int argc) {
 }
 
 /**
-** @param {argv} array of arguments for program, argv[0] is name of program
-** @param {argc} argument count
-** @returns 0 on success, <0 on error
+** @param {comm_list} list of commands
+** @param {num_progs} number of programs in comm_list
 **/
 
-int execute_prog(char **argv, int argc) {
-	pid_t procid, wpid;
-	int status = 0;
+void execute_comm_list(command_t *comm_list, int num_progs) {
+	pid_t wpid, procid;
+	int status;
+	int num_pipes = num_progs - 1; /*ex. foo | bar <- 1 pipe, 2 progs*/
+	int fd[2*num_pipes];
+	int executed_count = 0;
 
-	if(strcmp(argv[0], "exit") == 0) {
-		int sig = argv[1] ? atoi(argv[1]) : 0;
-		exit_with_sig(sig, argv, argc);
+	for(int i = 0; i < num_pipes; i++) {
+		pipe(fd + 2*i);
 	}
-	else {
-		procid = fork();
 
-		if(procid < 0) {
-		    printf("Error: Something unexpected happened\n");
+	while(comm_list != NULL) {
+		if((procid = fork()) < 0) {
+			printf("Unexpected error occurred\n");
+			exit(EXIT_FAILURE);
 		}
 		else if(procid == 0) {
-		    if(execvp(argv[0], argv) < 0) {
-		        printf("Error: %s program could not be found in your path\n", argv[0]);
-		        _exit(EXIT_FAILURE);
-		    }
-		    else {
-				_exit(EXIT_SUCCESS);
-		    }
+			/*If in child*/
+
+			/*Skip duping stdin on first program*/
+			if(executed_count > 0) {
+				dup2(fd[2*executed_count - 2], STDIN_FILENO);
+			}
+
+			/*Skip duping stdout on last program*/
+			if(executed_count < num_progs - 1) {
+				dup2(fd[2*executed_count + 1], STDOUT_FILENO);
+			}
+
+			/*Child closes all copies of their fd's*/
+			for(int i = 0; i < 2*num_pipes; i++){
+				close(fd[i]);
+            }
+
+			if(execvp(comm_list->argv[0], comm_list->argv) < 0) {
+			    printf("Error: %s program could not be found in your path\n", comm_list->argv[0]);
+			    _exit(EXIT_FAILURE);
+			}
 		}
-		else {
-		    wpid = wait(&status);
-		    free_args(argv, argc);
-		}
+
+		comm_list = comm_list->next;
+		executed_count++;
 	}
 
-	return status;
+	/*Parent closes all copies of their fd's*/
+	for(int i=0; i< 2*num_pipes; i++) {
+		close(fd[i]);
+	}
+
+	/*Wait for all children*/
+	while((wpid = wait(&status)) != -1);
 }
 
 int main( void ) {
@@ -371,9 +395,12 @@ int main( void ) {
 	size_t read_count;
 	tokens_t *tokens;
 	command_t *commands;
+	int num_commands;
 
 	/*Prompt user until interrupt, error or quit*/
 	while(1) {
+		num_commands = 0;
+
 		printf("> ");
 		getline(&input, &read_count, stdin);
 		input[strlen(input) - 1] = '\0'; /*Strip newline char*/
@@ -383,7 +410,9 @@ int main( void ) {
 		}
 
 		tokens = build_tokens(input);
-		commands = build_commands(tokens);
+		commands = build_commands(tokens, &num_commands);
+
+		execute_comm_list(commands, num_commands);
 
 		destroy_tokens(tokens);
 		destroy_commands(commands);
