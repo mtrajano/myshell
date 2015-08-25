@@ -24,11 +24,14 @@ command_t *create_command();
 void add_command(command_t **head, command_t *new_comm);
 command_t *build_commands(tokens_t *tokens, int *num_progs);
 void destroy_commands(command_t *list);
-void exit_with_sig(int sig, command_t *comm_list);
 int get_arg_len(char *line);
 void free_args(char **args, int argc);
 void remove_trailing_space(char *line);
 void execute_comm_list(command_t *comm_list, int num_progs);
+
+/*Implementation of special commands not in /bin*/
+void exit_with_sig(int sig, command_t *comm_list);
+void change_dir(char *path);
 
 
 struct tokens {
@@ -63,6 +66,53 @@ void debug_commands(command_t *list) {
 }
 
 /**
+*** ------------- BEGINNING OF SPECIAL COMMANDS -----------
+***/
+
+/**
+** @param {sig} signal to be exited with
+** @param {comm_list} list to be cleaned up on exit
+**/
+
+void exit_with_sig(int sig, command_t *comm_list) {
+	/*Clean up before*/
+	destroy_commands(comm_list);
+
+	printf("Shell exited with signal: %d\n", sig);
+	exit(sig);
+}
+
+/**
+** @param {path} path to cd into
+**/
+
+void change_dir(char *path) {
+	char *homedir = getenv("HOME");
+	char *lastdir = getenv("OLDPWD");
+
+	/*If path is NULL or ~ go to home*/
+	/*If path is - go to last working directory*/
+	/*Else go to path*/
+
+	if(path == NULL) {
+		chdir(homedir);
+	}
+	else if(strcmp("~", path) == 0) {
+		chdir(homedir);
+	}
+	else if(strcmp("-", path) == 0) {
+		chdir(lastdir);
+	}
+	else{
+		chdir(path);
+	}
+}
+
+/**
+*** --------------- END OF SPECIAL COMMANDS -------------
+***/
+
+/**
 ** @param {line} line which space at the end is to be removed
 **/
 
@@ -74,18 +124,6 @@ void remove_trailing_space(char *line) {
 	}
 
 	*(end+1) = '\0';
-}
-
-/**
-** @param {sig} signal to be exited with, NULL defaults to 0
-**/
-
-void exit_with_sig(int sig, command_t *comm_list) {
-	/*Clean up before*/
-	destroy_commands(comm_list);
-
-	printf("Shell exited with signal: %d\n", sig);
-	exit(sig);
 }
 
 /**
@@ -344,36 +382,48 @@ void execute_comm_list(command_t *comm_list, int num_progs) {
 	int fd[2*num_pipes];
 	int executed_count = 0;
 
+	/*Copy list in case exit is called, so exit can cleanup*/
+	command_t *list_copy = comm_list;
+
 	for(int i = 0; i < num_pipes; i++) {
 		pipe(fd + 2*i);
 	}
 
 	while(comm_list != NULL) {
-		if((procid = fork()) < 0) {
-			printf("Unexpected error occurred\n");
-			exit(EXIT_FAILURE);
+		if(strcmp("exit", comm_list->argv[0]) == 0) {
+			int sig = comm_list->argv[1] ? atoi(comm_list->argv[1]) : 0;
+			exit_with_sig(sig, list_copy);
 		}
-		else if(procid == 0) {
-			/*If in child*/
-
-			/*Skip duping stdin on first program*/
-			if(executed_count > 0) {
-				dup2(fd[2*executed_count - 2], STDIN_FILENO);
+		else if(strcmp("cd", comm_list->argv[0]) == 0) {
+			change_dir(comm_list->argv[1]);
+		}
+		else {
+			if((procid = fork()) < 0) {
+				printf("Unexpected error occurred\n");
+				exit(EXIT_FAILURE);
 			}
+			else if(procid == 0) {
+				/*If in child*/
 
-			/*Skip duping stdout on last program*/
-			if(executed_count < num_progs - 1) {
-				dup2(fd[2*executed_count + 1], STDOUT_FILENO);
-			}
+				/*Skip duping stdin on first program*/
+				if(executed_count > 0) {
+					dup2(fd[2*executed_count - 2], STDIN_FILENO);
+				}
 
-			/*Child closes all copies of their fd's*/
-			for(int i = 0; i < 2*num_pipes; i++){
-				close(fd[i]);
-            }
+				/*Skip duping stdout on last program*/
+				if(executed_count < num_progs - 1) {
+					dup2(fd[2*executed_count + 1], STDOUT_FILENO);
+				}
 
-			if(execvp(comm_list->argv[0], comm_list->argv) < 0) {
-			    printf("Error: %s program could not be found in your path\n", comm_list->argv[0]);
-			    _exit(EXIT_FAILURE);
+				/*Child closes all copies of their fd's*/
+				for(int i = 0; i < 2*num_pipes; i++){
+					close(fd[i]);
+	            }
+
+				if(execvp(comm_list->argv[0], comm_list->argv) < 0) {
+				    printf("Error: %s program could not be found in your path\n", comm_list->argv[0]);
+				    _exit(EXIT_FAILURE);
+				}
 			}
 		}
 
