@@ -35,7 +35,10 @@ void add_token(token_t **head, char *line, int num_chars) {
 int get_arg_len(char *line) {
 	int len = 0;
 
-	if(*line == '\"') {
+	if(*line == '$') {
+		len = 1;
+	}
+	else if(*line == '\"') {
 		line++;
 		while(*line != '\0' && *line != '\"' && len < MAX_ARG_LENGTH) {
 			line++;

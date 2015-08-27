@@ -40,6 +40,18 @@ command_t *build_commands(token_t *tokens, int *num_progs) {
 
 		/*Add args for a single command*/
 		while(tokens != NULL && tokens->token != NULL && strcmp(tokens->token, "|") != 0 && new_comm->argc < MAX_ARGS) {
+			/*Replace token with value of environment variable*/
+			if(strcmp("$", tokens->token) == 0) {
+				tokens = tokens->next;
+				char *envval = getenv(tokens->token) ? getenv(tokens->token) : "\0";
+
+				/*Allocate more space to fit value of env var*/
+				char *newloc = realloc(tokens->token, strlen(envval)+1);
+				tokens->token = newloc;
+
+				strcpy(tokens->token, envval);
+			}
+
 			new_comm->argv[new_comm->argc++] = tokens->token;
 			tokens = tokens->next;
 		}
