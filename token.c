@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "token.h"
 
@@ -29,6 +30,41 @@ void add_token(token_t **head, char *line, int num_chars) {
 		}
 		(tail)->next = temp;
 	}
+}
+
+int get_arg_len(char *line) {
+	int len = 0;
+
+	if(*line == '\"') {
+		line++;
+		while(*line != '\0' && *line != '\"' && len < MAX_ARG_LENGTH) {
+			line++;
+			len++;
+		}
+
+		if(*line != '\"') {
+			len = MISSMATCHED_DOUBLE_QUOTE;
+		}
+	}
+	else if(*line == '\'') {
+		line++;
+		while(*line != '\0' && *line != '\'' && len < MAX_ARG_LENGTH) {
+			line++;
+			len++;
+		}
+
+		if(*line != '\'') {
+			len = MISSMATCHED_SINGLE_QUOTE;
+		}
+	}
+	else{
+		while(*line != '\0' && *line != ' ' && len < MAX_ARG_LENGTH) {
+			line++;
+			len++;
+		}
+	}
+
+	return len;
 }
 
 token_t *build_tokens(char *line) {

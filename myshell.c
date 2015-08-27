@@ -60,41 +60,6 @@ void remove_trailing_space(char *line) {
 	*(end+1) = '\0';
 }
 
-int get_arg_len(char *line) {
-	int len = 0;
-
-	if(*line == '\"') {
-		line++;
-		while(*line != '\0' && *line != '\"' && len < MAX_ARG_LENGTH) {
-			line++;
-			len++;
-		}
-
-		if(*line != '\"') {
-			len = MISSMATCHED_DOUBLE_QUOTE;
-		}
-	}
-	else if(*line == '\'') {
-		line++;
-		while(*line != '\0' && *line != '\'' && len < MAX_ARG_LENGTH) {
-			line++;
-			len++;
-		}
-
-		if(*line != '\'') {
-			len = MISSMATCHED_SINGLE_QUOTE;
-		}
-	}
-	else{
-		while(*line != '\0' && *line != ' ' && len < MAX_ARG_LENGTH) {
-			line++;
-			len++;
-		}
-	}
-
-	return len;
-}
-
 void execute_comm_list(command_t *comm_list, int num_progs) {
 	pid_t wpid, procid;
 	int status;
