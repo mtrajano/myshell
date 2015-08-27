@@ -86,7 +86,6 @@ token_t *build_tokens(char *line) {
 
 		/*Exclude first quotes from arg*/
 		if(*line == '\'' || *line == '\"') {
-			add_token(&head, line, 1);
 			line++;
 		}
 
@@ -95,7 +94,6 @@ token_t *build_tokens(char *line) {
 
 		/*Exclude other side of quotes*/
 		if(*line == '\'' || *line == '\"') {
-			add_token(&head, line, 1);
 			line++;
 		}
 

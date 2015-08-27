@@ -40,12 +40,6 @@ command_t *build_commands(token_t *tokens, int *num_progs) {
 
 		/*Add args for a single command*/
 		while(tokens != NULL && tokens->token != NULL && strcmp(tokens->token, "|") != 0 && new_comm->argc < MAX_ARGS) {
-			/*Don't add quotes to args*/
-			if(strcmp(tokens->token, "\"") == 0 || strcmp(tokens->token, "\'") == 0) {
-				tokens = tokens->next;
-				continue;
-			}
-
 			new_comm->argv[new_comm->argc++] = tokens->token;
 			tokens = tokens->next;
 		}
